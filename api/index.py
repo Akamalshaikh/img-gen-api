@@ -2,7 +2,7 @@ import requests
 import json
 import time
 import uuid
-from flask import Flask, request, jsonify, send_file
+from flask import Flask, request, jsonify, send_file, Response
 from io import BytesIO
 
 # --- Flask App ---
@@ -93,24 +93,28 @@ def get_magic_image(prompt):
 
 # --- API Routes ---
 
+@app.route("/", methods=["GET"])
 @app.route("/api", methods=["GET"])
 @app.route("/api/", methods=["GET"])
 def home():
     """Home endpoint with API information."""
+    host = request.host
     return jsonify({
         "name": "Magic Studio API by Akamal Shaikh",
         "version": "3.0 - Vercel Edition",
-        "status": "running",
+        "status": "running ✅",
         "description": "Lightweight API wrapper for Magic Studio AI Art Generator",
         "endpoints": {
-            "generate": "/api/generate",
-            "methods": ["GET", "POST"],
-            "examples": {
-                "get": "https://akamal-shaikh.vercel.app/api/generate?prompt=a+beautiful+sunset",
-                "post": "curl -X POST https://akamal-shaikh.vercel.app/api/generate -H 'Content-Type: application/json' -d '{\"prompt\":\"a beautiful sunset\"}'"
-            }
+            "health": f"https://{host}/api/health",
+            "test": f"https://{host}/api/test",
+            "generate": f"https://{host}/api/generate?prompt=YOUR_PROMPT"
         },
-        "author": "Akamal Shaikh"
+        "usage_examples": {
+            "get": f"curl 'https://{host}/api/generate?prompt=a+beautiful+sunset'",
+            "post": f"curl -X POST https://{host}/api/generate -H 'Content-Type: application/json' -d '{{\"prompt\":\"a beautiful sunset\"}}'"
+        },
+        "author": "Akamal Shaikh",
+        "github": "https://github.com"
     })
 
 
@@ -128,7 +132,8 @@ def handle_generation_request():
         if not prompt:
             return jsonify({
                 "error": "Missing 'prompt' parameter",
-                "example": "/api/generate?prompt=a blue cat"
+                "example": f"https://{request.host}/api/generate?prompt=a+blue+cat",
+                "usage": "Add ?prompt=YOUR_PROMPT to the URL"
             }), 400
     
     # Handle POST request
@@ -165,10 +170,11 @@ def handle_generation_request():
 def health():
     """Health check endpoint."""
     return jsonify({
-        "status": "healthy",
+        "status": "healthy ✅",
         "platform": "vercel",
         "serverless": True,
-        "timestamp": time.time()
+        "timestamp": time.time(),
+        "message": "API is running perfectly!"
     })
 
 
@@ -176,15 +182,51 @@ def health():
 def test():
     """Quick test endpoint."""
     return jsonify({
-        "message": "API is running on Vercel!",
-        "test_endpoint": "/api/generate?prompt=test",
+        "message": "🎉 API is running on Vercel!",
+        "status": "success ✅",
+        "test_image_url": f"https://{request.host}/api/generate?prompt=test",
         "timestamp": time.time(),
         "author": "Akamal Shaikh"
     })
 
 
-# Vercel serverless handler
-def handler(request):
-    """Vercel serverless function handler."""
-    with app.request_context(request.environ):
-        return app.full_dispatch_request()
+# Catch-all route for other paths
+@app.route("/<path:path>")
+def catch_all(path):
+    """Catch-all route to redirect to API home."""
+    return jsonify({
+        "error": "Route not found",
+        "message": f"The path '/{path}' does not exist",
+        "available_endpoints": {
+            "home": f"https://{request.host}/api",
+            "health": f"https://{request.host}/api/health",
+            "test": f"https://{request.host}/api/test",
+            "generate": f"https://{request.host}/api/generate?prompt=YOUR_PROMPT"
+        },
+        "suggestion": f"Try visiting https://{request.host}/api"
+    }), 404
+
+
+# Error handlers
+@app.errorhandler(404)
+def not_found(e):
+    """Handle 404 errors."""
+    return jsonify({
+        "error": "Not Found",
+        "message": "The requested endpoint does not exist",
+        "available_endpoints": {
+            "home": f"https://{request.host}/api",
+            "health": f"https://{request.host}/api/health",
+            "test": f"https://{request.host}/api/test",
+            "generate": f"https://{request.host}/api/generate?prompt=YOUR_PROMPT"
+        }
+    }), 404
+
+
+@app.errorhandler(500)
+def internal_error(e):
+    """Handle 500 errors."""
+    return jsonify({
+        "error": "Internal Server Error",
+        "message": str(e)
+    }), 500
